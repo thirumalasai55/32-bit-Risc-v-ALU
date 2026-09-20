@@ -9,9 +9,9 @@ class generator;
   task main();
     for (int i = 0; i < repeat_count; i++) begin
       transaction trans = new();
-      if (!trans.randomize()) $fatal("Gen:: transaction randomization failed");
+      if (!trans.randomize()) $fatal("Gen:: randomization failed");
       gen2drv.put(trans);
     end
   endtask
-endclass
 
+endclass
