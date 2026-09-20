@@ -1,19 +1,89 @@
-# 32-bit RISC-V ALU Functional Verification
+# Low-Power 8-Bit RISC-V ALU with Operand Isolation
 
-## Architecture Overview
-This project successfully executes the complete functional verification of a 32-bit RISC-V Arithmetic Logic Unit (ALU) supporting the base integer (RV32I) instruction set. The primary objective was to mathematically prove the design's reliability using an industry-standard, Object-Oriented SystemVerilog testbench. Instead of relying on basic directed tests, the environment employs **Constrained-Random Verification (CRV)** to aggressively stress-test the hardware.
+This project implements a power-optimized 8-bit Arithmetic Logic Unit (ALU) tailored for the RISC-V instruction set architecture. Written in SystemVerilog, the design focuses on reducing dynamic power consumption using **Operand Isolation**—a technique that masks inputs to unused combinational hardware blocks to prevent unnecessary toggling.
 
-The architecture mirrors a professional **Universal Verification Methodology (UVM)** setup. It features a layered environment containing a Transaction class, Generator, Driver, Monitor, and Scoreboard. A **Golden Reference Model** is integrated directly into the Scoreboard, providing automated, real-time checking of the ALU's arithmetic, logical, and shift outputs, alongside the critical zero flag.
+The project includes a robust, object-oriented SystemVerilog verification environment complete with constrained random generation, functional coverage, SystemVerilog Assertions (SVA), and a custom toggle-tracking metric to quantify power savings.
 
-## Strategic Test Plan
-A core achievement of this project is the strategic implementation of distribution constraints. The randomized stimulus is specifically engineered to target physical hardware vulnerabilities:
-* **Boundary Biasing:** Using absolute and distributed weights, the generator forces extreme boundary conditions, including absolute zero, maximum positive values, maximum negative values, and all-ones. 
-* **Shifter Constraints:** The testbench intelligently slices the shift operand to exactly five bits (`b[4:0]`), guaranteeing that the barrel shifter is rigorously evaluated strictly within its physical 31-bit limitation without wasting simulation cycles on invalid data.
+## 🚀 Key Features
 
-## Verification Results & Coverage Model
-By combining heavily biased random stimulus generation with strict, automated results checking, the environment successfully triggered every defined hardware corner case across **10,000 randomized transactions**. 
+* **RISC-V Compatibility:** Supports 10 core operations (ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND).
+* **Low-Power Architecture:** Implements AND-gate masking to isolate inputs from dormant execution units, drastically reducing dynamic switching power.
+* **Hardware Sharing:** Reuses a single adder/subtractor block for `ADD`, `SUB`, `SLT`, and `SLTU` instructions to save area.
+* **OOP Verification Environment:** Custom testbench utilizing Transaction, Generator, Driver, Monitor, and Scoreboard classes.
+* **Power Metrics Tracker:** The testbench calculates real-time toggle reduction by comparing the isolated DUT against an unisolated baseline model.
+* **Coverage & Assertions:** Includes SystemVerilog Assertions for the `zero` flag and comprehensive `covergroups` for opcodes, boundary values, and cross-coverage.
 
-**Final Metric:** The final verification suite achieved a mathematically proven Functional Coverage score of exactly **100.00%**, demonstrating that the RISC-V ALU design is fundamentally ready for integration into a complete pipelined processor architecture.
+---
 
-### Simulation Output Proof
-<img width="1636" height="817" alt="image" src="https://github.com/user-attachments/assets/64671864-7ec0-4957-957e-7d978b54b4f9" />
+## 🛠️ Design Architecture
+
+The ALU design is divided into three primary stages:
+
+### 1. Instruction Decoding
+
+A 4-bit `alu_control` signal is decoded into individual one-hot enable signals (`en_add`, `en_xor`, etc.). These are logically grouped by hardware block (e.g., `en_arith` for addition/subtraction/comparisons, `en_bitwise` for logic operations).
+
+### 2. Operand Isolation (Power Optimization)
+
+Instead of feeding inputs `a` and `b` directly into all execution units simultaneously, the inputs are gated using the enable signals:
+
+```systemverilog
+assign a_arith = a & {8{en_arith}};
+assign b_arith = b & {8{en_arith}};
+
+```
+
+When an arithmetic operation is not selected, `a_arith` and `b_arith` are forced to `0`. This prevents the complex adder/subtractor logic from evaluating and toggling, which is the primary source of dynamic power waste in standard ALU designs.
+
+### 3. Execution Blocks & Output Muxing
+
+* **Adder/Subtractor:** A unified combinational block handles `ADD`, `SUB`, and derivation of the `SLT` (Set Less Than) and `SLTU` (Set Less Than Unsigned) flags.
+* **Shifters:** Manual gate-level implementations of logical left/right and arithmetic right shifts.
+* **Output:** Because unselected blocks output `8'b0` due to isolation, the final result is efficiently routed using a wide bitwise `OR` rather than a complex multiplexer.
+
+---
+
+## 🧪 Verification Strategy
+
+The testbench is built using a SystemVerilog class-based architecture, modeling a lightweight version of UVM.
+
+* **Constrained Randomization:** The `transaction` class forces the randomizer to heavily target edge cases (`8'h00`, `8'h7F`, `8'h80`, `8'hFF`) to ensure the arithmetic boundaries and carry/overflow logic are fully stressed.
+* **Golden Reference Scoreboard:** Computes expected results using high-level SV operators (`+`, `-`, `<<`, `$signed`) and compares them against DUT outputs on every clock cycle.
+* **Functional Coverage:** Ensures 100% hits across all opcodes, critical operand values (max positive, min negative, zero), and their cross-coverage combinations.
+* **SystemVerilog Assertions (SVA):** Bound via an interface to continuously monitor the `zero` flag integrity:
+```systemverilog
+property check_true_zero;
+  @(posedge clk) disable iff (!rst_n)
+  (result == 8'd0) |-> (zero == 1'b1);
+endproperty
+
+```
+
+
+
+---
+
+## 📊 Power Measurement Metrics
+
+A unique feature of this project is the built-in power saving calculator. The testbench continuously models an "unisolated" adder in the background:
+
+```systemverilog
+// Testbench tracks toggles on both isolated (DUT) and unisolated (baseline) sums
+if (dut.arith_sum != prev_sum) true_arith_toggles++;
+if (unisolated_sum != prev_unisolated_sum) unisolated_arith_toggles++;
+
+```
+
+At the end of the 10,000-transaction simulation, the environment calculates the exact percentage of toggles prevented by the AND-masking logic. This provides immediate, quantifiable proof of the design's power efficiency.
+
+## 💻 How to Run
+
+1. Compile the `riscv_alu.sv` (design) and `tb_top.sv` (testbench) files using any SystemVerilog simulator (e.g., ModelSim, Questa, VCS, Xcelium, or open-source Icarus Verilog / Verilator with SV support).
+2. Run the simulation. The testbench defaults to 10,000 randomized transactions.
+3. Review the terminal output for:
+* Scoreboard Pass/Fail counts.
+* Functional Coverage percentage.
+* The calculated **Toggle Reduction (Power Saved) Percentage**.
+
+
+4. A `dump.vcd` file is automatically generated for waveform analysis in tools like GTKWave.
