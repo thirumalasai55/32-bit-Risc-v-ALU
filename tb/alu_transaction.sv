@@ -1,41 +1,44 @@
 class transaction;
-  rand bit [31:0] a;
-  rand bit [31:0] b;
-  rand bit [3:0]  alu_control;
-  
-  bit [31:0] result;
-  bit        zero;
+  rand bit [7:0] a;
+  rand bit [7:0] b;
+  rand bit [3:0] alu_control;
 
-  // Constrain random generation for only required opcodes
+  bit [7:0] result;
+  bit       zero;
+  
   constraint valid_opcodes {
-    alu_control inside {4'b0000, 4'b1000, 4'b0001, 4'b0010, 4'b0011, 
-                        4'b0100, 4'b0101, 4'b0110, 4'b0111, 4'b1101};
+    alu_control inside {4'b0000, 4'b1000, 4'b0001, 4'b0010,
+                        4'b0011, 4'b0100, 4'b0101, 4'b0110,
+                        4'b0111, 4'b1101};
   }
+  
   constraint boundary_a {
     a dist {
-      32'h0000_0000 := 10, 
-      32'h7FFF_FFFF := 10,
-      32'h8000_0000 := 10,
-      32'hFFFF_FFFF := 10,
-      [32'h0000_0001 : 32'h7FFF_FFFE] :/ 30,
-      [32'h8000_0001 : 32'hFFFF_FFFE] :/ 30
+      8'h00 := 3,   
+      8'h7F := 3,   
+      8'h80 := 3,   
+      8'hFF := 3,   
+      [8'h01 : 8'h7E] :/ 5,
+      [8'h81 : 8'hFE] :/ 5
     };
   }
 
   constraint boundary_b {
     b dist {
-      32'h0000_0000 := 10,
-      32'h7FFF_FFFF := 10,
-      32'h8000_0000 := 10,
-      32'hFFFF_FFFF := 10,
-      32'h0000_001F := 10, // 31 in decimal (max shift amount for 32-bit)
-      [32'h0000_0001 : 32'h7FFF_FFFE] :/ 25,
-      [32'h8000_0001 : 32'hFFFF_FFFE] :/ 25
+      8'h00 := 3,   
+      8'h7F := 3,   
+      8'h80 := 3,   
+      8'hFF := 3,  
+      8'h07 := 3,   
+      [8'h01 : 8'h06] :/ 3,   
+      [8'h08 : 8'h7E] :/ 3,
+      [8'h81 : 8'hFE] :/ 3
     };
   }
 
   function void display(string name);
-    $display("[%s] Opcode: %4b | A: 0x%08h | B: 0x%08h | Result: 0x%08h | Zero: %0b", 
+    $display("[%s] Opcode: %4b | A: 0x%02h | B: 0x%02h | Result: 0x%02h | Zero: %0b",
               name, alu_control, a, b, result, zero);
   endfunction
+
 endclass
